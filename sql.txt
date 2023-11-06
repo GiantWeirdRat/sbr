@@ -1,0 +1,66 @@
+1)
+
+WITH recursive Get_Dates AS (
+  select CURDATE() as Date
+  union all
+  select Date + interval FLOOR( 2+RAND()*6 ) day
+  from Get_Dates
+  where Date < CURDATE() + interval 700 day )
+select * from Get_Dates LIMIT 100;
+
+2)
+
+set @row_c = 0;
+set @row_s = 0;
+select 
+  name,
+  sales_nums_ranked.sales_c as sales_c,
+  sales_nums_ranked.sales_c_rank as sales_rank_c,
+  sale_sums_ranked.sales_s as sales_s,
+  sale_sums_ranked.sales_s_rank as sales_rank_s
+from EMPLOYEE 
+inner join
+  ( select
+    sale_nums.employee_id as employee_id,
+    sales_c,
+    @row_c := @row_c+1 as sales_c_rank
+  from (
+  select
+    employee_id,
+    count( * ) as sales_c
+  from SALES group by employee_id order by sales_c desc
+  ) as sale_nums ) as sales_nums_ranked 
+on EMPLOYEE.id = sales_nums_ranked.employee_id
+inner join
+  ( select
+    sale_sums.employee_id,
+    sales_s,
+    @row_s := @row_s+1 as sales_s_rank
+  from (
+  select distinct
+    employee_id,
+    price as sales_s
+  from SALES order by price desc
+  ) as sale_sums ) as sale_sums_ranked
+on EMPLOYEE.id = sale_sums_ranked.employee_id;
+
+3)
+
+select
+  t1.id as acc,
+  t1.tdate as date_from,
+  if ( lead( t1.id ) over() <> t1.id or lead( t1.tdate ) over() is null,
+       date('3000-01-01'),
+       lead( t1.tdate ) over()
+     ) as date_to,
+  if (
+      lag( t1.id ) over() <> t1.id or lag( t1.amount ) over() is null,
+      t1.amount,
+      lag( t1.amount ) over() + t1.amount
+    ) as balance
+from
+(
+  select tfrom as id, -amount as amount, tdate from 
+  transfers union select tto as id, amount, tdate 
+  from transfers order by id, tdate
+) as t1
